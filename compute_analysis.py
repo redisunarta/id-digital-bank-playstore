@@ -10,9 +10,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import median
 
-DATA_DIR = "/Users/redisunarta/Documents/Digital Bank Review/data final/"
-BAD_REVIEWS = "/Users/redisunarta/Documents/Digital Bank Review/bad_reviews_classified.csv"
-OUTPUT = "/Users/redisunarta/Documents/Digital Bank Review/report/competitive-analysis-2026-06-11.md"
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(HERE, "data final")
+BAD_REVIEWS = os.path.join(HERE, "bad_reviews_classified.csv")
+OUTPUT = os.path.join(HERE, "report", f"competitive-analysis-{datetime.now().strftime('%Y-%m-%d')}.md")
+os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
 
 BANKS = [
     "Allo Bank",

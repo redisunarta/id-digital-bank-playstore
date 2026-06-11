@@ -350,7 +350,7 @@ def derive_bank(filename: str) -> str:
 
 
 def main():
-    base_dir = "/Users/redisunarta/Documents/Digital Bank Review/data final"
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data final")
     input_files = [
         "Allo_Bank_reviews_combined.csv",
         "Bank_Jago_reviews_combined.csv",
@@ -361,7 +361,7 @@ def main():
         "Superbank_reviews_combined.csv",
     ]
 
-    out_path = "/Users/redisunarta/Documents/Digital Bank Review/bad_reviews_classified.csv"
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bad_reviews_classified.csv")
     total_rows = 0
     bad_rows = 0
 
