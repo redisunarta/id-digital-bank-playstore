@@ -303,8 +303,9 @@ def build():
     }
     html = HTML_TEMPLATE.replace("/*__DATA__*/", json.dumps(data, ensure_ascii=False))
     out = os.path.join(HERE, "dashboard.html")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
+    for name in ("dashboard.html", "index.html"):
+        with open(os.path.join(HERE, name), "w", encoding="utf-8") as fh:
+            fh.write(html)
     grand = sum(m["total"] for m in bank_meta.values())
     print(f"OK  wrote {out}")
     print(f"    {len(banks_out)} banks · {grand:,} reviews · {bad['total']:,} classified bad reviews"
