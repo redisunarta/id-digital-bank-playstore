@@ -19,7 +19,7 @@ Re-run after re-crawling / re-classifying; it overwrites dashboard.html.
 
 import csv, glob, json, os, sys
 from collections import defaultdict, Counter
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 csv.field_size_limit(10**7)
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +47,7 @@ BANK_ALIAS = {
 
 MAX_VERSIONS = 12
 MIN_VER_COUNT = 30
+DAILY_DAYS = 210   # days of daily-granularity data to embed (covers 3m/6m windows)
 
 # ---- taxonomy (must mirror the Classifier Agent instruction) ----
 PARENTS = ["Access & Account", "Transactions", "Funds & Security", "Loans & Limits",
@@ -121,7 +122,7 @@ def parse_date(s):
 
 # ---------------------------------------------------------------------------
 def build_tab1():
-    banks_out, bank_meta, monthly, versions = [], {}, {}, {}
+    banks_out, bank_meta, monthly, versions, daily = [], {}, {}, {}, {}
     for stem, (name, color) in BANKS.items():
         path = os.path.join(RAW_DIR, stem + COMBINED_SUFFIX)
         if not os.path.exists(path):
@@ -133,6 +134,7 @@ def build_tab1():
         thumbs_total = 0
         first_d = last_d = None
         m_agg = defaultdict(lambda: {"n": 0, "sum": 0, "stars": [0, 0, 0, 0, 0]})
+        d_agg = defaultdict(lambda: {"n": 0, "sum": 0, "stars": [0, 0, 0, 0, 0]})
         v_agg = defaultdict(lambda: {"n": 0, "sum": 0})
         for row in read_rows(path):
             try:
@@ -158,6 +160,10 @@ def build_tab1():
             ma["n"] += 1
             ma["sum"] += rating
             ma["stars"][rating - 1] += 1
+            da = d_agg[d.isoformat()]
+            da["n"] += 1
+            da["sum"] += rating
+            da["stars"][rating - 1] += 1
             ver = (row.get("app_version") or "").strip()
             if ver:
                 va = v_agg[ver]
@@ -174,12 +180,16 @@ def build_tab1():
                  for k, v in v_agg.items() if v["n"] >= MIN_VER_COUNT]
         vlist.sort(key=lambda x: x["n"], reverse=True)
         versions[name] = vlist[:MAX_VERSIONS]
-    return banks_out, bank_meta, monthly, versions
+        cut = (last_d - timedelta(days=DAILY_DAYS)).isoformat() if last_d else "9999"
+        daily[name] = [{"d": k, "n": v["n"], "avg": round(v["sum"] / v["n"], 3), "stars": v["stars"]}
+                       for k, v in sorted(d_agg.items()) if k >= cut]
+    return banks_out, bank_meta, monthly, versions, daily
 
 
 def build_tab2():
     sub_idx = {s: i for i, s in enumerate(CONCRETE_SUBS)}
     bad_monthly = defaultdict(lambda: defaultdict(Counter))   # bank -> month -> sub -> n
+    bad_daily = defaultdict(lambda: defaultdict(Counter))     # bank -> date -> sub -> n
     cooc = defaultdict(Counter)                               # bank -> "i,j" -> n
     total = 0
     skipped = Counter()
@@ -199,6 +209,7 @@ def build_tab2():
         if sub not in SUB_PARENT:
             sub = "Uncategorized"
         bad_monthly[bank][mkey][sub] += 1
+        bad_daily[bank][d.isoformat()][sub] += 1
         total += 1
         sc = (r.get("subcategories") or "").strip()
         items = [p.strip() for p in sc.split("|") if p.strip()] if sc else []
@@ -221,6 +232,9 @@ def build_tab2():
         "sev_order": SEV_ORDER,
         "sev_colors": SEV_COLORS,
         "monthly": {b: {m: dict(c) for m, c in mm.items()} for b, mm in bad_monthly.items()},
+        "daily": {b: {k: dict(v) for k, v in days.items()
+                      if k >= (date.fromisoformat(max(days)) - timedelta(days=DAILY_DAYS)).isoformat()}
+                  for b, days in bad_daily.items() if days},
         "cooc": {b: dict(c) for b, c in cooc.items()},
     }
 
@@ -287,7 +301,7 @@ def build_examples():
 
 
 def build():
-    banks_out, bank_meta, monthly, versions = build_tab1()
+    banks_out, bank_meta, monthly, versions, daily = build_tab1()
     if not banks_out:
         sys.exit("No combined review files found in 'data final/'.")
     bad = build_tab2()
@@ -297,6 +311,7 @@ def build():
         "banks": banks_out,
         "bank_meta": bank_meta,
         "monthly": monthly,
+        "daily": daily,
         "versions": versions,
         "bad": bad,
         "examples": examples,
@@ -407,7 +422,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </span></div>
     <div><label>Granularity</label>
       <span class="seg" id="granSeg">
-        <button data-g="month" class="active">Monthly</button>
+        <button data-g="day">Daily</button><button data-g="month" class="active">Monthly</button>
         <button data-g="quarter">Quarterly</button>
       </span></div>
     <div style="margin-left:auto"><label>Banks</label><span id="bankToggles"></span></div>
@@ -539,8 +554,11 @@ function latestMonth(){let l='0000-00';BANKS.forEach(b=>DATA.monthly[b].forEach(
 function monthsBack(n){if(n===0)return'0000-00';let[y,mo]=latestMonth().split('-').map(Number);
   mo-=(n-1);while(mo<=0){mo+=12;y-=1;}return `${String(y).padStart(4,'0')}-${String(mo).padStart(2,'0')}`;}
 function inWindow(m){return m>=state._cut;}
-function periodKey(m){if(state.gran==='month')return m;let[y,mo]=m.split('-').map(Number);return `${y}-Q${Math.floor((mo-1)/3)+1}`;}
+function periodKey(m){if(state.gran==='month'||state.gran==='day')return m;let[y,mo]=m.split('-').map(Number);return `${y}-Q${Math.floor((mo-1)/3)+1}`;}
 function shown(){return BANKS.filter(b=>state.active.has(b));}
+function srcRows(bank){return state.gran==='day'?((DATA.daily&&DATA.daily[bank])||[]).map(r=>({m:r.d,n:r.n,avg:r.avg,stars:r.stars})):DATA.monthly[bank];}
+function badSrc(bank){return state.gran==='day'?((BAD.daily&&BAD.daily[bank])||{}):(BAD.monthly[bank]||{});}
+function setGran(g){state.gran=g;document.querySelectorAll('#granSeg button').forEach(x=>x.classList.toggle('active',x.dataset.g===g));}
 function toRGBA(c,a){
   if(Array.isArray(c))return c.map(x=>toRGBA(x,a));
   if(typeof c!=='string')return c;
@@ -561,19 +579,20 @@ const LH={
 function baseOpts(scales,indexAxis){return{responsive:true,maintainAspectRatio:false,indexAxis:indexAxis||'x',
   interaction:{mode:'index',intersect:false},
   plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}},onHover:LH.onHover,onLeave:LH.onLeave}},
-  scales:Object.assign({x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true}},
+  scales:Object.assign({x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12,
+      callback:function(v){const l=this.getLabelForValue(v);return(state.gran==='day'&&typeof l==='string'&&l.length>=10)?l.slice(5):l;}}},
     y:{grid:{color:'#eef1f5'},ticks:{font:{size:10}}}},scales)};}
 
 /* ====================== TAB 1 ====================== */
 function agg(bank){
-  const rows=DATA.monthly[bank].filter(m=>inWindow(m.m));
+  const rows=srcRows(bank).filter(m=>inWindow(m.m));
   let n=0,sumw=0,stars=[0,0,0,0,0];const pmap={};
   rows.forEach(m=>{n+=m.n;sumw+=m.avg*m.n;m.stars.forEach((c,i)=>stars[i]+=c);
     const p=periodKey(m.m);if(!pmap[p])pmap[p]={p,n:0,sumw:0};pmap[p].n+=m.n;pmap[p].sumw+=m.avg*m.n;});
   const series=Object.values(pmap).sort((a,b)=>a.p<b.p?-1:1).map(o=>({p:o.p,n:o.n,avg:o.n?o.sumw/o.n:null}));
   return{n,avg:n?sumw/n:0,stars,series};
 }
-function allPeriods(){const s=new Set();BANKS.forEach(b=>DATA.monthly[b].forEach(m=>{if(inWindow(m.m))s.add(periodKey(m.m));}));return[...s].sort();}
+function allPeriods(){const s=new Set();BANKS.forEach(b=>srcRows(b).forEach(m=>{if(inWindow(m.m))s.add(periodKey(m.m));}));return[...s].sort();}
 function deltaOf(a){const s=a.series.filter(x=>x.avg!=null);if(s.length<2)return 0;const h=Math.floor(s.length/2);return avgOf(s.slice(h))-avgOf(s.slice(0,h));}
 function avgOf(arr){let n=0,sw=0;arr.forEach(x=>{n+=x.n;sw+=x.avg*x.n;});return n?sw/n:0;}
 function signed(x){return(x>=0?'+':'')+x.toFixed(2);}
@@ -646,14 +665,14 @@ function renderTab1(){renderKPIs();renderMatrix();renderTab1Charts();}
 
 /* ====================== TAB 2 ====================== */
 function badAgg(bank){
-  const mm=BAD.monthly[bank]||{};const subC={},parC={},sevC={};let badN=0;
+  const mm=badSrc(bank);const subC={},parC={},sevC={};let badN=0;
   for(const m in mm){if(!inWindow(m))continue;for(const s in mm[m]){const c=mm[m][s];
     subC[s]=(subC[s]||0)+c;badN+=c;
     const p=BAD.sub_parent[s]||'Other';parC[p]=(parC[p]||0)+c;
     const v=BAD.sub_sev[s]||'Unknown';sevC[v]=(sevC[v]||0)+c;}}
   return{subC,parC,sevC,badN};
 }
-function badPeriods(bank){const mm=BAD.monthly[bank]||{},pm={};
+function badPeriods(bank){const mm=badSrc(bank),pm={};
   for(const m in mm){if(!inWindow(m))continue;const p=periodKey(m);if(!pm[p])pm[p]={bad:0,par:{}};
     for(const s in mm[m]){const c=mm[m][s];pm[p].bad+=c;const par=BAD.sub_parent[s]||'Other';pm[p].par[par]=(pm[p].par[par]||0)+c;}}
   return pm;}
@@ -798,7 +817,11 @@ function init(){
   trendBank.addEventListener('change',renderTrend);
   coocBank.addEventListener('change',renderCooc);
   document.querySelectorAll('#winSeg button').forEach(b=>b.addEventListener('click',e=>{
-    document.querySelectorAll('#winSeg button').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');state.win=+e.target.dataset.w;renderActive();}));
+    document.querySelectorAll('#winSeg button').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');
+    state.win=+e.target.dataset.w;
+    if(state.win===3)setGran('day');
+    else if((state.win>=12||state.win===0)&&state.gran==='day')setGran('month');
+    renderActive();}));
   document.querySelectorAll('#granSeg button').forEach(b=>b.addEventListener('click',e=>{
     document.querySelectorAll('#granSeg button').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');state.gran=e.target.dataset.g;renderActive();}));
   document.querySelectorAll('#matrix th').forEach(th=>th.addEventListener('click',()=>{
