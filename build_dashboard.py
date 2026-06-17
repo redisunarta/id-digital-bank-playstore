@@ -364,7 +364,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;}
   .kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;} .kpi .v{font-size:26px;font-weight:500;margin-top:5px;font-family:var(--serif);}
   .kpi .d{font-size:12px;margin-top:2px;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:18px 20px;margin-bottom:22px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:18px 20px;margin-bottom:22px;position:relative;}
+  .dlbtn{position:absolute;top:14px;right:16px;border:1px solid var(--line);background:var(--card);color:var(--muted);
+    border-radius:4px;padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;z-index:2;}
+  .dlbtn:hover{color:var(--ink);border-color:var(--accent);}
   .card h2{margin:0 0 3px;font-size:17px;font-weight:500;font-family:var(--serif);} .card .hint{color:var(--muted);font-size:12px;margin-bottom:14px;}
   .card .tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
@@ -798,6 +801,19 @@ function renderExamples(){
   document.getElementById('exCount').textContent=`${rows.length.toLocaleString()} reviews match (showing up to 400 of ${EX.length.toLocaleString()} sampled).`;
 }
 
+/* ---------- chart image download ---------- */
+function downloadChart(cv,name){
+  const ch=Chart.getChart(cv);if(!ch)return;const src=ch.canvas;
+  const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;
+  const ctx=tmp.getContext('2d');ctx.fillStyle='#fffdfa';ctx.fillRect(0,0,tmp.width,tmp.height);ctx.drawImage(src,0,0);
+  const a=document.createElement('a');a.download=name+'.png';a.href=tmp.toDataURL('image/png');a.click();}
+const DLMAP={ratingLine:'rating_over_time',volumeLine:'review_volume',starDist:'star_distribution',verChart:'rating_by_version',
+  negRateBar:'negative_rate_by_bank',negRateLine:'negative_rate_over_time',mixChart:'complaint_mix',trendChart:'complaint_trend',sevChart:'severity_split'};
+function addDownloadButtons(){Object.entries(DLMAP).forEach(([cv,name])=>{
+  const el=document.getElementById(cv);if(!el)return;const card=el.closest('.card');if(!card||card.querySelector('.dlbtn'))return;
+  const btn=document.createElement('button');btn.className='dlbtn';btn.textContent='⤓ PNG';btn.title='Download PNG';
+  btn.addEventListener('click',()=>downloadChart(cv,name));card.appendChild(btn);});}
+
 /* ---------- orchestration ---------- */
 function renderActive(){state._cut=monthsBack(state.win);
   state.tab==='1'?renderTab1():state.tab==='2'?renderTab2():renderExamples();}
@@ -862,6 +878,7 @@ function init(){
   document.getElementById('foot').innerHTML=
     `Created by <b>Redi Sunarta</b> · Source: Google Play Store · ${Object.values(BM).reduce((s,m)=>s+m.total,0).toLocaleString()} reviews · ${BAD.total.toLocaleString()} classified 1–3★ · Regenerate: python build_dashboard.py`;
   renderActive();
+  addDownloadButtons();
 }
 init();
 </script>
