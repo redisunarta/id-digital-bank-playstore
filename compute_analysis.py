@@ -24,6 +24,7 @@ BANKS = [
     "Neobank BNC",
     "Sea Bank",
     "Superbank",
+    "Krom Bank",
 ]
 
 FILE_MAP = {
@@ -34,6 +35,7 @@ FILE_MAP = {
     "Neobank BNC": "Neobank_BNC_reviews_combined.csv",
     "Sea Bank": "Sea_Bank_reviews_combined.csv",
     "Superbank": "Superbank_reviews_combined.csv",
+    "Krom Bank": "Krom_Bank_reviews_combined.csv",
 }
 
 DISPLAY_NAMES = {
@@ -44,6 +46,7 @@ DISPLAY_NAMES = {
     "Neobank BNC": "Neobank BNC",
     "Sea Bank": "SeaBank",
     "Superbank": "Superbank",
+    "Krom Bank": "Krom Bank",
 }
 
 REVEALED_SUBCATS = {

@@ -30,7 +30,7 @@ Step 4 (Reporter) is an LLM agent. Step 6 needs your GitHub credentials.
 1. Crawl fresh reviews for one or more banks.
 2. Save each export into `Data Raw/` named `<Stem>_reviews_<label>.csv`, where
    `<Stem>` is one of: `Allo_Bank, Bank_Jago, Blu_by_BCA_Digital, Jenius,
-   Neobank_BNC, Sea_Bank, Superbank` and `<label>` is any new tag
+   Neobank_BNC, Sea_Bank, Superbank, Krom_Bank` and `<label>` is any new tag
    (e.g. `Jul26`). Do **not** overwrite older snapshots — keep them; the merge
    de-duplicates across all of them by `review_id`, newest file winning.
 3. Run the pipeline (below). New reviews flow through automatically; unchanged
@@ -54,7 +54,8 @@ can run in parallel with or after the build.
 | # | Stage | Type | Command / agent | Input | Output |
 |---|-------|------|-----------------|-------|--------|
 | 1 | Merge | deterministic | `merge_data.py` | `Data Raw/<Stem>_reviews_*.csv` | `data final/<Stem>_reviews_combined.csv` |
-| 2 | Classify | deterministic | `classifier.py` | `data final/*_combined.csv` | `bad_reviews_classified.csv` |
+| 2 | Classify | deterministic | `classifier.py` | `data final/*_combined.csv` | `Data Classified/*_classified_combined.csv` |
+| 2b | Aggregate | deterministic | `aggregate_classified.py` | `Data Classified/` | `bad_reviews_classified.csv` |
 | 3 | Analyze | deterministic | `compute_analysis.py` | combined + classified | `report/competitive-analysis-<date>.md` |
 | 4 | Report | LLM agent | Reporter agent | analysis `.md` | `report/intel-report-<date>.md` |
 | 5 | Build | deterministic | `build_dashboard.py` | combined + classified | `index.html`, `dashboard.html` |

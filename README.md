@@ -3,9 +3,9 @@
 A small pipeline that turns Google Play Store reviews of Indonesia's digital banks
 into a competitive-intelligence dashboard and a set of analyst/reporter agents.
 
-It covers seven apps — **Allo Bank, Bank Jago, blu by BCA, Jenius, Neobank BNC,
-SeaBank, Superbank** — across ~327k reviews, with ~89k negative (1–3★) reviews
-rule-classified into a complaint taxonomy.
+It covers eight apps — **Allo Bank, Bank Jago, blu by BCA, Jenius, Neobank BNC,
+SeaBank, Superbank, Krom Bank** — across ~345k reviews, with ~91k negative (1–3★)
+reviews rule-classified into a complaint taxonomy.
 
 > Data files (raw and processed CSVs) are **not** included in this repo — they
 > contain reviewer names and are large. See [Data layout](#data-layout).
@@ -13,14 +13,18 @@ rule-classified into a complaint taxonomy.
 ## Pipeline
 
 ```
-crawl  →  classify            →  analyze / report        →  visualize
-(CSV)     classifier.py           compute_analysis.py        build_dashboard.py
-          bad_reviews_*.csv       agents/Analyst + Reporter  dashboard.html
+crawl → merge → classify → aggregate → analyze/report → visualize
+(CSV)   merge_  classifier  aggregate_  compute_         build_
+        data.py .py         classified  analysis.py      dashboard.py
 ```
 
+Run it all with `./run_pipeline.sh` (see `Pipeline_Workflow.md`).
+
 1. **Crawl** — Play Store reviews exported per bank (one CSV per app).
-2. **Classify** — `classifier.py` applies a deterministic rule/lexicon model to the
-   1–3★ reviews, assigning a category, subcategory, severity, and multi-label set.
+2. **Merge** — `merge_data.py` de-duplicates raw snapshots into `data final/`.
+3. **Classify** — `classifier.py` applies a deterministic rule/lexicon model to the
+   1–3★ reviews, then `aggregate_classified.py` combines the per-bank outputs into
+   `bad_reviews_classified.csv`.
 3. **Analyze & report** — the agent instructions in `agents/` define a Classifier →
    Analyst → Reporter chain that produces a numbers-first analysis and a decision memo.
 4. **Visualize** — `build_dashboard.py` aggregates everything into a single

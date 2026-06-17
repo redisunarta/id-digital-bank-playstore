@@ -349,79 +349,164 @@ def derive_bank(filename: str) -> str:
     return base.replace("_", " ")
 
 
+DATE_TAG = "17Jun26"
+
+
 def main():
     base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data final")
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data Classified")
+
     input_files = [
         "Allo_Bank_reviews_combined.csv",
         "Bank_Jago_reviews_combined.csv",
         "Blu_by_BCA_Digital_reviews_combined.csv",
         "Jenius_reviews_combined.csv",
+        "Krom_Bank_reviews_combined.csv",
         "Neobank_BNC_reviews_combined.csv",
         "Sea_Bank_reviews_combined.csv",
         "Superbank_reviews_combined.csv",
     ]
 
-    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bad_reviews_classified.csv")
-    total_rows = 0
-    bad_rows = 0
+    headers = [
+        "review_id", "bank", "review_date", "review_content", "star_rating",
+        "category", "subcategory", "severity", "subcategories", "confidence",
+    ]
 
-    with open(out_path, "w", newline="") as out:
-        writer = csv.writer(out)
-        writer.writerow([
-            "review_id", "bank", "review_date", "star_rating", "review_content",
-            "category", "subcategory", "severity",
-            "subcategories", "confidence",
-        ])
+    grand_total = 0
+    grand_bad = 0
+    grand_skipped = 0
+    category_counts = defaultdict(int)
+    uncategorized_count = 0
+    gd_count = 0
 
-        for fname in input_files:
-            fpath = os.path.join(base_dir, fname)
-            fsize = os.path.getsize(fpath)
-            print(f"Processing {fname} ({fsize:,} bytes)...")
+    combined_before = {}
+    for fname in input_files:
+        bank = derive_bank(fname)
+        combined_path = os.path.join(out_dir, f"{bank.replace(' ', '_')}_classified_combined.csv")
+        if os.path.exists(combined_path):
+            with open(combined_path, "rb") as raw:
+                combined_before[bank] = len(raw.read().splitlines()) - 1  # subtract header
+        else:
+            combined_before[bank] = 0
 
-            default_bank = derive_bank(fname)
+    for fname in input_files:
+        fpath = os.path.join(base_dir, fname)
+        fsize = os.path.getsize(fpath)
+        print(f"Processing {fname} ({fsize:,} bytes)...")
 
-            with open(fpath, "rb") as raw:
-                content = raw.read().replace(b"\x00", b"")
+        default_bank = derive_bank(fname)
+        bank_slug = default_bank.replace(" ", "_")
 
-            decoded = content.decode("utf-8", errors="replace")
-            lines = decoded.splitlines()
+        with open(fpath, "rb") as raw:
+            content = raw.read().replace(b"\x00", b"")
 
-            reader = csv.DictReader(lines)
-            file_bad = 0
-            file_total = 0
+        decoded = content.decode("utf-8", errors="replace")
+        lines = decoded.splitlines()
 
-            for row in reader:
-                file_total += 1
-                try:
-                    star = int(row.get("star_rating", "0").strip())
-                except (ValueError, KeyError):
-                    continue
-                if star > 3:
-                    continue
+        reader = csv.DictReader(lines)
+        file_bad = 0
+        file_total = 0
+        file_skipped = 0
+        rows = []
 
-                file_bad += 1
-                bank = row.get("app_name", "").strip() or default_bank
-                review_id = row.get("review_id", "").strip()
-                review_date = row.get("review_date", "").strip()
-                content_text = row.get("review_content", "").strip()
+        for row in reader:
+            file_total += 1
+            try:
+                star = int(row.get("star_rating", "0").strip())
+            except (ValueError, KeyError):
+                continue
+            if star > 3:
+                file_skipped += 1
+                continue
 
-                norm = normalize(content_text)
-                category, subcategory, severity, sub_list, confidence = classify(norm)
+            file_bad += 1
+            bank = row.get("app_name", "").strip() or default_bank
+            review_id = row.get("review_id", "").strip()
+            review_date = row.get("review_date", "").strip()
+            content_text = row.get("review_content", "").strip()
 
-                sub_str = "|".join(sub_list) if sub_list else ""
+            norm = normalize(content_text)
+            category, subcategory, severity, sub_list, confidence = classify(norm)
 
-                writer.writerow([
-                    review_id, bank, review_date, star, content_text,
-                    category, subcategory, severity,
-                    sub_str, confidence,
-                ])
+            sub_str = "|".join(sub_list) if sub_list else ""
 
-            total_rows += file_total
-            bad_rows += file_bad
-            print(f"  {fname}: {file_total} total, {file_bad} bad reviews")
+            category_counts[category] += 1
+            if category == "Other":
+                uncategorized_count += 1
+            if category == "General Feedback":
+                gd_count += 1
 
-    print(f"\nDone. {total_rows} total rows, {bad_rows} bad reviews classified.")
-    print(f"Output: {out_path}")
+            rows.append([
+                review_id, bank, review_date, content_text, star,
+                category, subcategory, severity,
+                sub_str, confidence,
+            ])
+
+        # Write per-batch file
+        batch_path = os.path.join(out_dir, f"{bank_slug}_classified_{DATE_TAG}.csv")
+        with open(batch_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            writer.writerows(rows)
+        print(f"  → {batch_path} ({len(rows)} rows)")
+
+        # Append to combined file
+        combined_path = os.path.join(out_dir, f"{bank_slug}_classified_combined.csv")
+        existing_ids = set()
+        if os.path.exists(combined_path):
+            with open(combined_path, "r", newline="") as f:
+                existing_reader = csv.DictReader(f)
+                for existing_row in existing_reader:
+                    existing_ids.add(existing_row.get("review_id", "").strip())
+
+        new_rows = [r for r in rows if r[0] not in existing_ids]
+        if new_rows:
+            write_header = not os.path.exists(combined_path) or os.path.getsize(combined_path) == 0
+            with open(combined_path, "a", newline="") as f:
+                writer = csv.writer(f)
+                if write_header:
+                    writer.writerow(headers)
+                writer.writerows(new_rows)
+
+        grand_total += file_total
+        grand_bad += file_bad
+        grand_skipped += file_skipped
+        print(f"  {fname}: {file_total} total, {file_skipped} skipped (4-5*), {file_bad} classified")
+
+    # Report
+    pct_uncat = (uncategorized_count / grand_bad * 100) if grand_bad else 0
+    pct_gd = (gd_count / grand_bad * 100) if grand_bad else 0
+
+    print()
+    print("=" * 60)
+    print("CLASSIFICATION REPORT — 17 Jun 2026")
+    print("=" * 60)
+    print(f"  Rows in input (8 combined files): {grand_total}")
+    print(f"  Skipped (4-5 star):                {grand_skipped}")
+    print(f"  Classified:                        {grand_bad}")
+    print()
+    print("  Breakdown by category:")
+    for cat in sorted(category_counts.keys()):
+        print(f"    {cat:35s} {category_counts[cat]:5d}")
+    print()
+    print(f"  % Uncategorized:         {pct_uncat:.1f}%  (target < 15%)")
+    print(f"  % General Dissatisfaction: {pct_gd:.1f}%  (flag if > 20%)")
+    print()
+    print("  Combined files before → after:")
+    for fname in input_files:
+        bank = derive_bank(fname)
+        bank_slug = bank.replace(" ", "_")
+        combined_path = os.path.join(out_dir, f"{bank_slug}_classified_combined.csv")
+        if os.path.exists(combined_path):
+            with open(combined_path, "rb") as raw:
+                after = len(raw.read().splitlines()) - 1
+        else:
+            after = 0
+        before = combined_before.get(bank, 0)
+        added = after - before
+        print(f"    {bank:25s} {before:5d} → {after:5d} rows  (+{added})")
+    print()
+    print(f"Output directory: {out_dir}")
 
 
 if __name__ == "__main__":

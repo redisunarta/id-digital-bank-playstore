@@ -36,6 +36,7 @@ BANKS = {
     "Neobank_BNC":        ("Neobank BNC", "#8B5CF6"),
     "Sea_Bank":           ("SeaBank",     "#22C55E"),
     "Superbank":          ("Superbank",   "#EC4899"),
+    "Krom_Bank":          ("Krom Bank",   "#4F46E5"),
 }
 # classifier file uses slightly different bank spellings -> canonical display
 BANK_ALIAS = {
@@ -43,6 +44,7 @@ BANK_ALIAS = {
     "Blu by BCA Digital": "blu by BCA", "blu by BCA": "blu by BCA",
     "Jenius": "Jenius", "Neobank BNC": "Neobank BNC",
     "Sea Bank": "SeaBank", "SeaBank": "SeaBank", "Superbank": "Superbank",
+    "Krom Bank": "Krom Bank", "Krom_Bank": "Krom Bank",
 }
 
 MAX_VERSIONS = 12

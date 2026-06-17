@@ -12,16 +12,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-echo "[1/4] merge + de-dup raw  ->  data final/"
-python3 merge_data.py
+echo "[1/5] merge + de-dup raw   ->  data final/"
+python3 merge_data.py | tail -1
 
-echo "[2/4] classify 1-3 star    ->  bad_reviews_classified.csv"
+echo "[2/5] classify 1-3 star    ->  Data Classified/"
 python3 classifier.py | tail -1
 
-echo "[3/4] analyst metrics      ->  report/competitive-analysis-<date>.md"
+echo "[3/5] aggregate classified ->  bad_reviews_classified.csv"
+python3 aggregate_classified.py | tail -1
+
+echo "[4/5] analyst metrics      ->  report/competitive-analysis-<date>.md"
 python3 compute_analysis.py | tail -1
 
-echo "[4/4] build dashboard      ->  index.html + dashboard.html"
+echo "[5/5] build dashboard      ->  index.html + dashboard.html"
 python3 build_dashboard.py | tail -1
 
 echo "Deterministic pipeline complete."
@@ -34,7 +37,7 @@ if [[ "${1:-}" == "--publish" ]]; then
     echo "No git repo at $REPO — skipping publish."; exit 0
   fi
   echo "[publish] syncing artifacts into repo and pushing"
-  cp index.html dashboard.html build_dashboard.py classifier.py \
+  cp index.html dashboard.html build_dashboard.py classifier.py aggregate_classified.py \
      compute_analysis.py merge_data.py run_pipeline.sh Pipeline_Workflow.md "$REPO/" 2>/dev/null || true
   cp Classifier_Agent_Instruction.md Analyst_Agent_Instruction.md \
      Reporter_Agent_Instruction.md "$REPO/agents/" 2>/dev/null || true

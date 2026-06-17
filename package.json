@@ -1,0 +1,27 @@
+{
+  "name": "id-digital-bank-playstore",
+  "version": "1.0.0",
+  "description": "A small pipeline that turns Google Play Store reviews of Indonesia's digital banks into a competitive-intelligence dashboard and a set of analyst/reporter agents.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/redisunarta/id-digital-bank-playstore.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/redisunarta/id-digital-bank-playstore/issues"
+  },
+  "homepage": "https://github.com/redisunarta/id-digital-bank-playstore#readme",
+  "dependencies": {
+    "google-play-scraper": "^10.1.3"
+  }
+}

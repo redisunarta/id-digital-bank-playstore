@@ -32,6 +32,7 @@ BANKS = {
     "Neobank_BNC":        ("Neobank BNC",        ""),
     "Sea_Bank":           ("Sea Bank",           ""),
     "Superbank":          ("Superbank",          ""),
+    "Krom_Bank":          ("Krom Bank",          ""),
 }
 
 HEADER = ["app_name", "app_id", "reviewer_name", "review_date", "review_content",
