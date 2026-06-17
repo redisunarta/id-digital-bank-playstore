@@ -418,13 +418,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div class="controls" id="controls">
     <div><label>Window</label>
       <span class="seg" id="winSeg">
-        <button data-w="3">3m</button><button data-w="6">6m</button>
-        <button data-w="12">12m</button><button data-w="24" class="active">24m</button>
-        <button data-w="0">All</button>
+        <button data-w="1">1m</button><button data-w="2">2m</button>
+        <button data-w="3" class="active">3m</button>
+        <button data-w="12">12m</button><button data-w="0">All</button>
       </span></div>
     <div><label>Granularity</label>
       <span class="seg" id="granSeg">
-        <button data-g="day">Daily</button><button data-g="month" class="active">Monthly</button>
+        <button data-g="day" class="active">Daily</button><button data-g="month">Monthly</button>
         <button data-g="quarter">Quarterly</button>
       </span></div>
     <div style="margin-left:auto"><label>Banks</label><span id="bankToggles"></span></div>
@@ -548,7 +548,7 @@ const SUBPAL=['#3b82f6','#60a5fa','#1d4ed8','#93c5fd','#06b6d4','#22d3ee','#0e74
   '#ef4444','#f87171','#b91c1c','#fca5a5','#d97706','#fbbf24','#7c3aed','#a78bfa','#5b21b6','#c4b5fd',
   '#db2777','#65a30d','#9ca3af'];
 const SUBCOLOR=Object.fromEntries(BAD.subs_order.map((s,i)=>[s,SUBPAL[i%SUBPAL.length]]));
-let state={win:24,gran:'month',tab:'1',active:new Set(BANKS),matrixSort:{k:'avg',asc:false},
+let state={win:3,gran:'day',tab:'1',active:new Set(BANKS),matrixSort:{k:'avg',asc:false},
   mixLevel:'parent',mixValue:'share'};
 
 /* ---------- shared helpers ---------- */
@@ -578,8 +578,8 @@ const LH={
   onLeave:(e,item,legend)=>{const ch=legend.chart;
     ch.data.datasets.forEach(ds=>{if(ds._cap){ds.borderColor=ds._ob;ds.backgroundColor=ds._og;ds.borderWidth=ds._ow;}});
     ch.update('none');}};
-function baseOpts(scales,indexAxis){return{responsive:true,maintainAspectRatio:false,indexAxis:indexAxis||'x',
-  interaction:{mode:'index',intersect:false},
+function baseOpts(scales,indexAxis,intersect){return{responsive:true,maintainAspectRatio:false,indexAxis:indexAxis||'x',
+  interaction:{mode:'index',intersect:!!intersect},
   plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}},onHover:LH.onHover,onLeave:LH.onLeave}},
   scales:Object.assign({x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12,
       callback:function(v){const l=this.getLabelForValue(v);return(state.gran==='day'&&typeof l==='string'&&l.length>=10)?l.slice(5):l;}}},
@@ -649,7 +649,7 @@ function renderTab1Charts(){
   const labels=['1★','2★','3★','4★','5★'],cols=['#dc2626','#f97316','#eab308','#84cc16','#16a34a'];
   const sds=labels.map((lab,i)=>({label:lab,backgroundColor:cols[i],data:sh.map(b=>{const t=A[b].n||1;return A[b].stars[i]/t*100;})}));
   starChart&&starChart.destroy();
-  starChart=new Chart(starDist,{type:'bar',data:{labels:sh,datasets:sds},options:baseOpts({x:{stacked:true,max:100,ticks:{callback:v=>v+'%'}},y:{stacked:true}},'y')});
+  starChart=new Chart(starDist,{type:'bar',data:{labels:sh,datasets:sds},options:baseOpts({x:{stacked:true,max:100,ticks:{callback:v=>v+'%'}},y:{stacked:true}},'y',true)});
   renderVolChart();renderVerChart();
 }
 function renderVolChart(){const b=volBank.value,periods=allPeriods(),m=Object.fromEntries(agg(b).series.map(s=>[s.p,s.n]));
@@ -658,7 +658,7 @@ function renderVolChart(){const b=volBank.value,periods=allPeriods(),m=Object.fr
 function renderVerChart(){const b=verBank.value,vs=(DATA.versions[b]||[]).slice().sort((a,c)=>verCmp(a.v,c.v));
   verChart&&verChart.destroy();
   verChart=new Chart(verChart_cv(),{type:'bar',data:{labels:vs.map(v=>v.v),datasets:[{label:'Avg ★',data:vs.map(v=>v.avg),backgroundColor:vs.map(v=>v.avg>=4?'#16a34a':v.avg>=3?'#eab308':'#dc2626')}]},
-    options:Object.assign(baseOpts({y:{min:1,max:5,ticks:{stepSize:1}}}),{plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:c=>`${vs[c.dataIndex].n.toLocaleString()} reviews`}}}})});}
+    options:Object.assign(baseOpts({y:{min:1,max:5,ticks:{stepSize:1}}},'x',true),{plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:c=>`${vs[c.dataIndex].n.toLocaleString()} reviews`}}}})});}
 function verChart_cv(){return document.getElementById('verChart');}
 function verCmp(a,b){const pa=a.split('.').map(n=>parseInt(n)||0),pb=b.split('.').map(n=>parseInt(n)||0);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){if((pa[i]||0)!==(pb[i]||0))return(pa[i]||0)-(pb[i]||0);}return 0;}
@@ -710,7 +710,7 @@ function renderNegRate(){
   negBar&&negBar.destroy();
   negBar=new Chart(negRateBar,{type:'bar',data:{labels:sh,datasets:[{label:'Negative rate',
     data:sh.map(b=>{const t=agg(b).n;return t?badAgg(b).badN/t*100:0;}),backgroundColor:sh.map(b=>COLORS[b])}]},
-    options:Object.assign(baseOpts({y:{beginAtZero:true,ticks:{callback:v=>v+'%'}}}),{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+'%'}}}})});
+    options:Object.assign(baseOpts({y:{beginAtZero:true,ticks:{callback:v=>v+'%'}}},'x',true),{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+'%'}}}})});
   // over time: neg rate per period per bank
   const periods=allPeriods();
   const ds=sh.map(b=>{const bp=badPeriods(b),tot=Object.fromEntries(agg(b).series.map(s=>[s.p,s.n]));
@@ -729,7 +729,7 @@ function renderMix(){
       return share?(A[b].badN?val/A[b].badN*100:0):val;})}));
   mixChart&&mixChart.destroy();
   mixChart=new Chart(document.getElementById('mixChart'),{type:'bar',data:{labels:sh,datasets:ds},
-    options:Object.assign(baseOpts({x:{stacked:true,beginAtZero:true,max:share?100:undefined,ticks:share?{callback:v=>v+'%'}:{}},y:{stacked:true}},'y'),
+    options:Object.assign(baseOpts({x:{stacked:true,beginAtZero:true,max:share?100:undefined,ticks:share?{callback:v=>v+'%'}:{}},y:{stacked:true}},'y',true),
     {plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9}},onHover:LH.onHover,onLeave:LH.onLeave},
       tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${share?c.parsed.x.toFixed(1)+'%':c.parsed.x.toLocaleString()}`}}}})});
 }
@@ -749,7 +749,7 @@ function renderSev(){
     data:sh.map(b=>{const t=A[b].badN||1;return(A[b].sevC[s]||0)/t*100;})}));
   sevChart&&sevChart.destroy();
   sevChart=new Chart(document.getElementById('sevChart'),{type:'bar',data:{labels:sh,datasets:ds},
-    options:Object.assign(baseOpts({x:{stacked:true,max:100,ticks:{callback:v=>v+'%'}},y:{stacked:true}},'y'),
+    options:Object.assign(baseOpts({x:{stacked:true,max:100,ticks:{callback:v=>v+'%'}},y:{stacked:true}},'y',true),
     {plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}},onHover:LH.onHover,onLeave:LH.onLeave},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.x.toFixed(1)}%`}}}})});
 }
 function renderCooc(){
@@ -821,11 +821,14 @@ function init(){
   document.querySelectorAll('#winSeg button').forEach(b=>b.addEventListener('click',e=>{
     document.querySelectorAll('#winSeg button').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');
     state.win=+e.target.dataset.w;
-    if(state.win===3)setGran('day');
-    else if((state.win>=12||state.win===0)&&state.gran==='day')setGran('month');
+    if(state.win>=1&&state.win<=3)setGran('day');
+    else if(state.gran==='day')setGran('month');
     renderActive();}));
   document.querySelectorAll('#granSeg button').forEach(b=>b.addEventListener('click',e=>{
-    document.querySelectorAll('#granSeg button').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');state.gran=e.target.dataset.g;renderActive();}));
+    const g=e.target.dataset.g;
+    if(g==='day'&&!(state.win>=1&&state.win<=3)){state.win=3;
+      document.querySelectorAll('#winSeg button').forEach(x=>x.classList.toggle('active',x.dataset.w==='3'));}
+    setGran(g);renderActive();}));
   document.querySelectorAll('#matrix th').forEach(th=>th.addEventListener('click',()=>{
     const k=th.dataset.k;state.matrixSort=state.matrixSort.k===k?{k,asc:!state.matrixSort.asc}:{k,asc:false};renderMatrix();}));
   // tab2 toggles
